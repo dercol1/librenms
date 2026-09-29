@@ -244,6 +244,9 @@ final class PortIfAliasTest extends InMemoryDbTestCase
         return Device::factory()->create(['os' => 'generic']);
     }
 
+    /**
+     * @param  array<string, mixed>  $extra
+     */
     private function makePort(Device $device, int $ifIndex, string $ifName, ?string $ifAlias, ?string $ifDescr, array $extra = []): Port
     {
         return Port::factory()->create(array_merge([
@@ -261,6 +264,10 @@ final class PortIfAliasTest extends InMemoryDbTestCase
      *
      * SnmpQueryInterface is what SnmpQuery::make() resolves, see
      * AppServiceProvider.
+     */
+    /**
+     * @param  array<int, string>  $alias
+     * @param  array<int, string>  $descr
      */
     private function fakeSnmp(array $alias = [], array $descr = []): void
     {
@@ -284,6 +291,9 @@ final class PortIfAliasTest extends InMemoryDbTestCase
         });
     }
 
+    /**
+     * @param  array<string, mixed>  $options
+     */
     private function runCommand(string $deviceSpec, array $options = []): string
     {
         // Artisan::call() is used instead of $this->artisan() because the

@@ -29,6 +29,7 @@ namespace App\Console\Commands;
 
 use App\Console\LnmsCommand;
 use App\Models\Device;
+use App\Models\Port;
 use Illuminate\Database\Eloquent\Builder;
 use LibreNMS\Util\ConsolePager;
 use SnmpQuery;
@@ -177,9 +178,8 @@ class PortIfAlias extends LnmsCommand
 
     private function deviceHeader(Device $device, int $portCount): string
     {
-        $name = $device->displayName() === $device->hostname
-            ? $device->hostname
-            : $device->displayName() . ' (' . $device->hostname . ')';
+        // displayName() is deprecated, read the field directly
+        $name = (string) ($device->display ?: $device->hostname);
 
         return trans('commands.port:ifAlias.device', [
             'device' => $name,
@@ -195,6 +195,8 @@ class PortIfAlias extends LnmsCommand
      * implementing one of them still reports the other. hideMib() is required:
      * without it the keys come back as IF-MIB::ifAlias.1 and the lookup below
      * would never match.
+     *
+     * @return array<int, array<string, string>>
      */
     private function fetchDeviceValues(Device $device): array
     {
@@ -219,7 +221,10 @@ class PortIfAlias extends LnmsCommand
         return $values;
     }
 
-    private function processPort(Device $device, $port, array $device_values, bool $has_snmp): void
+    /**
+     * @param  array<int, array<string, string>>  $device_values
+     */
+    private function processPort(Device $device, Port $port, array $device_values, bool $has_snmp): void
     {
         $db = (string) ($port->ifAlias ?? '');
         $device_alias = (string) ($device_values[$port->ifIndex]['ifAlias'] ?? '');
@@ -312,7 +317,7 @@ class PortIfAlias extends LnmsCommand
     }
 
     private function portRow(
-        $port,
+        Port $port,
         string $db,
         string $device_alias,
         bool $has_snmp,

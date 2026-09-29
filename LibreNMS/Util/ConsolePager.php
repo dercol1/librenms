@@ -65,7 +65,7 @@ class ConsolePager
      * @param  bool|null  $interactive  override terminal detection, for tests
      */
     public function __construct(
-        private ?string $command = null,
+        private readonly ?string $command = null,
         private readonly int $perPage = 30,
         ?callable $writer = null,
         private readonly ?bool $interactive = null
