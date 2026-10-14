@@ -220,6 +220,24 @@ final class SnmpResponseTest extends TestCase
         $this->assertEquals(['85341', '85343'], $response->mapTable(fn ($data, $index) => $index)->all());
     }
 
+    public function testStringIndexContainingSpaces(): void
+    {
+        // net-snmp prints a string index in brackets and it may contain spaces
+        $response = new RawSnmpResponse("ALBENTIA-AS-MIB::radioInfoFreq[blue] = 5435\n"
+            . "ALBENTIA-AS-MIB::radioInfoFreq[blue 1] = 5505\n"
+            . "ALBENTIA-AS-MIB::radioInfoFreq[gray] = 4945\n"
+            . "ALBENTIA-AS-MIB::radioInfoFreq[gray 1] = 5415\n");
+
+        $this->assertEquals([
+            'ALBENTIA-AS-MIB::radioInfoFreq[blue]' => '5435',
+            'ALBENTIA-AS-MIB::radioInfoFreq[blue 1]' => '5505',
+            'ALBENTIA-AS-MIB::radioInfoFreq[gray]' => '4945',
+            'ALBENTIA-AS-MIB::radioInfoFreq[gray 1]' => '5415',
+        ], $response->values());
+
+        $this->assertEquals(['blue', 'blue 1', 'gray', 'gray 1'], array_keys($response->table(1)));
+    }
+
     public function numericTest(): void
     {
         $response = new RawSnmpResponse(".1.3.6.1.2.1.2.2.1.10.1 = 495813425\n.1.3.6.1.2.1.2.2.1.10.2 = 3495809228\n");

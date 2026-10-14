@@ -118,7 +118,10 @@ class RawSnmpResponse extends SnmpResponse
      */
     private function looksLikeOid(string $candidate): bool
     {
-        return ! preg_match('/\s/', $candidate)
+        // a string index may contain spaces, i.e. ALBENTIA-AS-MIB::radioInfoFreq[blue 1]
+        $withoutStringIndexes = (string) preg_replace('/"[^"]*"|\[[^\]]*\]/', '', $candidate);
+
+        return ! preg_match('/\s/', $withoutStringIndexes)
             && (str_contains($candidate, '.') || str_contains($candidate, '[') || str_contains($candidate, '::'));
     }
 
