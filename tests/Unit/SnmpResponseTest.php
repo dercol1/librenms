@@ -189,6 +189,37 @@ final class SnmpResponseTest extends TestCase
         $this->assertEquals(['SNMPv2-MIB::sysDescr' => [1 => "something\n on two lines"]], $response->table());
     }
 
+    public function testMultiLineValueContainingKeyValueLines(): void
+    {
+        // VMware tools returns the contents of /etc/SuSE-release as vmwVmGuestOS,
+        // lines such as "VERSION = 42.3" are part of the value, not a new varbind
+        $response = new RawSnmpResponse("vmwVmDisplayName[85341] = SSIS-openSUSE\n"
+            . "vmwVmGuestOS[85341] = Linux 4.4.159-73-default openSUSE 42.3 (x86_64)\n"
+            . "VERSION = 42.3\n"
+            . "CODENAME = Malachite\n"
+            . "# /etc/SuSE-release is deprecated and will be removed in the future, use /etc/os-release instead\n"
+            . "vmwVmDisplayName[85343] = SSIS-Leap\n"
+            . "vmwVmGuestOS[85343] = Linux 5.14.21\n");
+
+        $this->assertTrue($response->isValid());
+        $this->assertEquals([
+            'vmwVmDisplayName[85341]' => 'SSIS-openSUSE',
+            'vmwVmGuestOS[85341]' => "Linux 4.4.159-73-default openSUSE 42.3 (x86_64)\nVERSION = 42.3\nCODENAME = Malachite\n# /etc/SuSE-release is deprecated and will be removed in the future, use /etc/os-release instead",
+            'vmwVmDisplayName[85343]' => 'SSIS-Leap',
+            'vmwVmGuestOS[85343]' => 'Linux 5.14.21',
+        ], $response->values());
+    }
+
+    public function testMapTableSkipsUnindexedVarbinds(): void
+    {
+        // an unindexed varbind is not a table row, it would otherwise be stored with an empty index
+        $response = new RawSnmpResponse("VERSION = 42.3\nvmwVmGuestOS[85343] = Linux 5.14.21\n");
+        $this->assertEquals(['85343'], $response->mapTable(fn ($data, $index) => $index)->all());
+
+        $response = new RawSnmpResponse("vmwVmGuestOS[85341] = Linux\nVERSION = 42.3\nvmwVmGuestOS[85343] = Linux 5.14.21\n");
+        $this->assertEquals(['85341', '85343'], $response->mapTable(fn ($data, $index) => $index)->all());
+    }
+
     public function numericTest(): void
     {
         $response = new RawSnmpResponse(".1.3.6.1.2.1.2.2.1.10.1 = 495813425\n.1.3.6.1.2.1.2.2.1.10.2 = 3495809228\n");

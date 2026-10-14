@@ -80,41 +80,70 @@ class RawSnmpResponse extends SnmpResponse
 
         $this->inferValueEncoding ??= ! StringHelpers::isValidUtf8($this->raw);
         $this->values = [];
+        $oid = null; // the varbind currently being read
+        $value = '';
+
         $line = strtok($this->raw, PHP_EOL);
         while ($line !== false) {
-            if (preg_match(self::BAD_VALUE_REGEX, $line)) {
-                $line = strtok(PHP_EOL);
-                continue;
-            }
+            if (! preg_match(self::BAD_VALUE_REGEX, $line)) {
+                $parts = explode(self::KEY_VALUE_DELIMITER, $line, 2);
 
-            $parts = explode(self::KEY_VALUE_DELIMITER, $line, 2);
-            if (count($parts) == 1) {
-                array_unshift($parts, '');
+                if (count($parts) == 2 && ($oid === null || $this->looksLikeOid($parts[0]))) {
+                    $this->storeValue($oid, $value);
+                    $oid = $parts[0];
+                    $value = $parts[1];
+                } elseif ($oid !== null) {
+                    // net-snmp prints values containing newlines over several lines,
+                    // a line such as "VERSION = 42.3" belongs to the value being read
+                    $value .= PHP_EOL . $line;
+                } else {
+                    // no delimiter at all (snmptranslate style output), keep it unindexed
+                    $oid = '';
+                    $value = $line;
+                }
             }
-            [$oid, $value] = $parts;
 
             $line = strtok(PHP_EOL);
-            while ($line !== false && ! str_contains($line, self::KEY_VALUE_DELIMITER)) {
-                $value .= PHP_EOL . $line;
-                $line = strtok(PHP_EOL);
-            }
-
-            if (LibrenmsConfig::get('snmp.unescape')) {
-                $value = stripslashes($value);
-            }
-
-            if (str_starts_with($value, '"') && str_ends_with($value, '"')) {
-                $value = trim(stripslashes($value), "\" \n\r");
-            } else {
-                $value = trim($value);
-            }
-
-            $this->values[$oid] = $this->inferValueEncoding
-                ? StringHelpers::inferEncoding($value)
-                : $value;
         }
 
+        $this->storeValue($oid, $value);
+
         return $this->values;
+    }
+
+    /**
+     * Only the left side of a varbind is an oid, anything else is a continuation of
+     * a multi-line value. Oids never contain whitespace and always contain a module
+     * name, an index or a numeric sub-identifier.
+     */
+    private function looksLikeOid(string $candidate): bool
+    {
+        return ! preg_match('/\s/', $candidate)
+            && (str_contains($candidate, '.') || str_contains($candidate, '[') || str_contains($candidate, '::'));
+    }
+
+    /**
+     * Store a finished varbind, applying the same value clean up to every one of them.
+     */
+    private function storeValue(?string $oid, string $value): void
+    {
+        if ($oid === null) {
+            return;
+        }
+
+        if (LibrenmsConfig::get('snmp.unescape')) {
+            $value = stripslashes($value);
+        }
+
+        if (str_starts_with($value, '"') && str_ends_with($value, '"')) {
+            $value = trim(stripslashes($value), "\" \n\r");
+        } else {
+            $value = trim($value);
+        }
+
+        $this->values[$oid] = $this->inferValueEncoding
+            ? StringHelpers::inferEncoding($value)
+            : $value;
     }
 
     public function raw(): string
